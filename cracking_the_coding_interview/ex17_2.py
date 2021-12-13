@@ -5,7 +5,7 @@ Each of the different outcomes most have an equal chance of being chosen.
 from random import randint  # we're allowed to use a "perfect" random number generator
 
 
-def shuffle(shuffled_list: list[int], size: int):
+def shuffle_size(shuffled_list: list[int], size: int):
     """
     Receive a list of size + 1 (at least) elements, from which the first size elements are already randomly shuffled.
     This function uses the random number generator to choose a random item to swap with the size+1-th element in the
@@ -18,6 +18,11 @@ def shuffle(shuffled_list: list[int], size: int):
     shuffled_list[size] = temp
 
 
+def shuffle(arr: list[int]):
+    for i in range(1, len(arr)):
+        shuffle_size(arr, i)
+
+
 def main():
     """
     Create a list of 52 items (we choose to assign them the values 0 to 51), then shuffle them by first shuffling a 1
@@ -26,8 +31,7 @@ def main():
     """
     n = 52
     cards = [i for i in range(n)]
-    for i in range(1, n):
-        shuffle(cards, i)
+    shuffle(cards)
     print(cards)
 
 
