@@ -133,7 +133,7 @@ def test_algorithm(number_of_tests: int):
 
 
 def main():
-    test_algorithm(400)
+    test_algorithm(10000)
 
 
 if __name__ == '__main__':
