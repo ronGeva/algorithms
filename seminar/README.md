@@ -1,0 +1,1 @@
+This directory contains code snippets and other documents related to a seminar I've done during my academic studies
