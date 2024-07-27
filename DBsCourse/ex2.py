@@ -1,10 +1,17 @@
 import pandas
-import pandas as pd
-from typing import List
+import pickle
+import itertools
+from typing import List, Tuple, Any
 import numpy as np
+from os.path import abspath, join, dirname, exists
+
+CACHE_FILE = join(dirname(abspath(__file__)), 'ex2_cache')
 
 
-CSV_PATH = r"C:\Users\rgeva\Downloads\poverty_raw_data.csv"
+CSV_PATH = r"C:\Users\Ron\Downloads\poverty_raw_data.csv"
+NON_KEY_COLUMNS = ("decile10", "decile9", "decile8", "decile7", "decile6", "decile5", "decile4", "decile3", "decile2",
+                   "decile1", "polarization", "gini", "median", "mean", "watts", "headcount", "mld", "cpi",
+                   "reporting_pop", "reporting_gdp", "reporting_pce", "record_id", "ppp", "poverty_gap")
 
 
 class FunctionalDependency(object):
@@ -13,31 +20,41 @@ class FunctionalDependency(object):
         self.dst = dst
 
 
-def check_functional_dependency(data: pandas.DataFrame, src_index: int, dst_index: int) -> bool:
+def check_functional_dependency(data: pandas.DataFrame, src_indexes: Tuple[Any], dst_index: int) -> bool:
     src_to_dst = {}
     for value in data.values:
-        src_value = value[src_index]
+        src_values = tuple(value[index] for index in src_indexes)
         dst_value = value[dst_index]
-        if np.nan in (src_value, dst_value):
+        if np.nan in (*src_values, dst_value):
             continue  # ignore NULLs
 
-        if src_value in src_to_dst and src_to_dst[src_value] != dst_value:
+        if src_values in src_to_dst and src_to_dst[src_values] != dst_value:
             return False
 
-        src_to_dst[src_value] = dst_value
+        src_to_dst[src_values] = dst_value
 
     return True
 
 
-def find_functional_dependencies(data: pandas.DataFrame) -> List[FunctionalDependency]:
+def find_functional_dependencies(data: pandas.DataFrame, max_key_size: int) -> List[FunctionalDependency]:
+    if exists(CACHE_FILE):
+        with open(CACHE_FILE, 'rb') as f:
+            return pickle.load(f)
+
     dependencies = []
-    for src_index in range(len(data.columns)):
+    possible_source_indexes = [list(data.columns).index(c) for c in set(data.columns) - set(NON_KEY_COLUMNS)]
+    source_tuples = itertools.product(possible_source_indexes, repeat=max_key_size)
+    for source_indexes in source_tuples:
         for dst_index in range(len(data.columns)):
-            if src_index == dst_index:
+            if dst_index in source_indexes:
                 continue
 
-            if check_functional_dependency(data, src_index, dst_index):
-                dependencies.append(FunctionalDependency(data.columns[src_index], data.columns[dst_index]))
+            if check_functional_dependency(data, source_indexes, dst_index):
+                dependencies.append(FunctionalDependency(tuple(data.columns[i] for i in source_indexes),
+                                                         data.columns[dst_index]))
+
+    with open(CACHE_FILE, 'wb') as f:
+        pickle.dump(dependencies, f)
 
     return dependencies
 
@@ -58,12 +75,20 @@ def constant_columns(data: pandas.DataFrame):
                 non_const_discoveries.add(i)
         const_columns = [i for i in const_columns if i not in non_const_discoveries]
 
-    return [data.columns[i] for i in const_columns]
+    return {data.columns[i]: values[i] for i in const_columns}
+
 
 def main():
-    poverty_flat = pd.read_csv(r"C:\Users\rgeva\Downloads\poverty_raw_data.csv")
-    dependencies = find_functional_dependencies(poverty_flat)
+    poverty_flat = pandas.read_csv(CSV_PATH)
     const_columns = constant_columns(poverty_flat)
+
+    poverty_flat = poverty_flat.drop(columns=const_columns.keys())
+    dependencies = find_functional_dependencies(poverty_flat, max_key_size=3)
+    nodes = {}
+    for dependency in dependencies:
+        if dependency.source not in nodes:
+            nodes[dependency.source] = []
+        nodes[dependency.source].append(dependency.dst)
     return
 
 
