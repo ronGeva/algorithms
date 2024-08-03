@@ -1,6 +1,7 @@
 import pandas
 import pickle
 import itertools
+import duckdb
 from typing import List, Tuple, Any, Dict, Optional, Set
 import numpy as np
 from os.path import abspath, join, dirname, exists
@@ -158,6 +159,31 @@ def split_to_bcnf(dependant_columns: Dict[Tuple[str], List[str]], tables: List[B
     split_to_bcnf(dependant_columns, tables)
 
 
+def perform_queries(poverty_flat: pandas.DataFrame, output_directory: str):
+    table1 = duckdb.query("select distinct country_name, country_code, region_code from poverty_flat")
+    table3 = duckdb.query(
+        "select distinct survey_year, country_name, survey_coverage, reporting_gdp, distribution_type from poverty_flat")
+    table6 = duckdb.query(
+        "select distinct survey_year, reporting_level, country_name, reporting_pce, reporting_pop, cpi from poverty_flat")
+    table7 = duckdb.query(
+        "select distinct welfare_type, survey_year, country_name, survey_comparability, survey_acronym from poverty_flat")
+
+    res1 = duckdb.query(
+        "select distinct table1.country_name, table3.survey_year, table7.survey_acronym from table1 join table3 on"
+        " (table1.country_name = table3.country_name) join table7 on (table1.country_name = table7.country_name)"
+        " where table1.region_code = 'LAC' and table3.survey_coverage = 'national'")
+    res1.write_csv(join(output_directory, 'out2.csv'))
+
+    res2 = duckdb.query(
+        "select distinct table1.country_name, table6.reporting_pce from table1 join table6 on (table1.country_name = table6.country_name)"
+        " where table1.region_code = 'SSA' and table6.reporting_pce <= ALL"
+        "(select table6.reporting_pce from "
+        "table1 join table6 on (table1.country_name = table6.country_name)"
+        "where table1.region_code = 'SSA' and table6.reporting_pce is not NULL )")
+
+    res1.write_csv(join(output_directory, 'out3.csv'))
+
+
 def main():
     poverty_flat = pandas.read_csv(CSV_PATH)
     const_columns = constant_columns(poverty_flat)
@@ -176,6 +202,8 @@ def main():
     print("BCNF form tables (primary keys are shown surrounded with '*'):")
     for table in tables:
         print(table)
+
+    perform_queries(poverty_flat, r'C:\temp')
 
 
 if __name__ == '__main__':
