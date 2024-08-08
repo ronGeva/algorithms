@@ -9,10 +9,9 @@ import numpy as np
 from os.path import abspath, join, dirname, exists
 from progressbar import progressbar
 
-CACHE_FILE = join(dirname(abspath(__file__)), 'ex2_cache')
-
-
-CSV_PATH = join(dirname(abspath(__file__)), 'poverty_raw_data.csv')
+CURRENT_DIRECTORY = dirname(abspath(__file__))
+CACHE_FILE = join(CURRENT_DIRECTORY, 'ex2_cache')
+CSV_PATH = join(CURRENT_DIRECTORY, 'poverty_raw_data.csv')
 NON_KEY_COLUMNS = ("decile10", "decile9", "decile8", "decile7", "decile6", "decile5", "decile4", "decile3", "decile2",
                    "decile1", "polarization", "gini", "median", "mean", "watts", "headcount", "mld", "cpi",
                    "reporting_pop", "reporting_gdp", "reporting_pce", "record_id", "ppp", "poverty_gap",
@@ -161,7 +160,7 @@ def split_to_bcnf(dependant_columns: Dict[Tuple[str], List[str]], tables: List[B
     split_to_bcnf(dependant_columns, tables)
 
 
-def perform_queries(poverty_flat: pandas.DataFrame, output_directory: str):
+def perform_queries(poverty_flat: pandas.DataFrame):
     Countries = duckdb.query("select distinct country_name, country_code, region_code from poverty_flat")
     CountryYearlyResults = duckdb.query(
         "select distinct survey_year, country_name, survey_coverage, reporting_gdp, distribution_type from poverty_flat")
@@ -170,7 +169,6 @@ def perform_queries(poverty_flat: pandas.DataFrame, output_directory: str):
     SurveyDescription = duckdb.query(
         "select distinct welfare_type, survey_year, country_name, survey_comparability, survey_acronym from poverty_flat")
 
-    Countries.write_csv(r'C:\temp\countries.csv')
     res1 = duckdb.query(
         "select distinct Countries.country_name, CountryYearlyResults.survey_year, SurveyDescription.survey_acronym from"
         " Countries join CountryYearlyResults on"
@@ -178,7 +176,9 @@ def perform_queries(poverty_flat: pandas.DataFrame, output_directory: str):
         "(CountryYearlyResults.country_name = SurveyDescription.country_name and"
         " CountryYearlyResults.survey_year = SurveyDescription.survey_year)"
         " where Countries.region_code = 'LAC' and CountryYearlyResults.survey_coverage = 'national'")
-    res1.write_csv(join(output_directory, 'out2.csv'))
+    res_out_path = join(CURRENT_DIRECTORY, 'res1.csv')
+    print(f"Writing the result of the first query into {res_out_path}")
+    res1.write_csv(res_out_path)
 
     res2 = duckdb.query(
         "select distinct Countries.country_name, GeneralSurveyResults.reporting_pce from Countries join GeneralSurveyResults on (Countries.country_name = GeneralSurveyResults.country_name)"
@@ -187,7 +187,9 @@ def perform_queries(poverty_flat: pandas.DataFrame, output_directory: str):
         "Countries join GeneralSurveyResults on (Countries.country_name = GeneralSurveyResults.country_name)"
         "where Countries.region_code = 'SSA' and GeneralSurveyResults.reporting_pce is not NULL )")
 
-    res2.write_csv(join(output_directory, 'out3.csv'))
+    res_out_path = join(CURRENT_DIRECTORY, 'res2.csv')
+    print(f"Writing the result of the first query into {res_out_path}")
+    res2.write_csv(res_out_path)
 
 
 def is_null(val):
@@ -207,6 +209,12 @@ def get_null_columns(poverty_flat: pandas.DataFrame) -> Set[int]:
 
 def get_functional_mappings(poverty_flat: pandas.DataFrame, tables: List[BCNFTable],
                             null_columns: Set[int]) -> list:
+    """
+    Return a mapping of <column indexes>: <destination indexes> such that the columns at <column indexes> determine
+    the value of the column at <destination index>.
+    We only compute such pairings when <destination index> is of a column containing a NULL value, and we only use
+    the dependencies captures in the BCNF tables list.
+    """
     mappings = []
     for index in null_columns:
         column_name = list(poverty_flat.columns)[index]
@@ -219,6 +227,10 @@ def get_functional_mappings(poverty_flat: pandas.DataFrame, tables: List[BCNFTab
 
 
 def get_functional_completion(poverty_flat: pandas.DataFrame, functional_mappings: list):
+    """
+    Return a mapping of <values>: <value> such that when the appropriate source columns from "functional_mappings" are
+    assigned <values> the appropriate destination column from "functional_mappings" is assigned <value>.
+    """
     functional_completion = {}
     for row in poverty_flat.values:
         for completion in functional_mappings:
@@ -243,8 +255,11 @@ def fill_nulls_using_functional_dependency(poverty_flat: pandas.DataFrame, table
                 dst_value = functional_completion[source_values]
                 row[dst_index] = dst_value
         fixed_table.append(row)
+
     fixed_table_frame = pandas.DataFrame(fixed_table, columns=poverty_flat.columns)
-    duckdb.query(r'select * from fixed_table_frame').write_csv(r'C:\temp\fixed.csv')
+    out_path = join(CURRENT_DIRECTORY, 'null_fix_using_fd.csv')
+    print(f"writing the result of fixing nulls using function dependencies into {out_path}")
+    duckdb.query(r'select * from fixed_table_frame').write_csv(out_path)
 
 
 def fix_null_by_removal(poverty_flat: pandas.DataFrame):
@@ -256,7 +271,9 @@ def fix_null_by_removal(poverty_flat: pandas.DataFrame):
                 continue
             fixed_table.append(row)
     fixed_table_frame = pandas.DataFrame(fixed_table, columns=poverty_flat.columns)
-    duckdb.query(r'select * from fixed_table_frame').write_csv(r'C:\temp\fixed_remove_lines.csv')
+    out_path = join(CURRENT_DIRECTORY, 'null_fix_using_removal.csv')
+    print(f"writing the result of fixing nulls using removal into {out_path}")
+    duckdb.query(r'select * from fixed_table_frame').write_csv(out_path)
 
 
 def get_most_common_values(poverty_flat: pandas.DataFrame, column_indexes: List[int]) -> Dict[int, Any]:
@@ -278,7 +295,9 @@ def fix_nulls_by_most_frequent(poverty_flat: pandas.DataFrame):
 
         fixed_table.append(row)
     fixed_table_frame = pandas.DataFrame(fixed_table, columns=poverty_flat.columns)
-    duckdb.query(r'select * from fixed_table_frame').write_csv(r'C:\temp\fixed_most_common.csv')
+    out_path = join(CURRENT_DIRECTORY, 'null_fix_using_most_common.csv')
+    print(f"writing the result of fixing nulls using most common value into {out_path}")
+    duckdb.query(r'select * from fixed_table_frame').write_csv(out_path)
 
 
 def main():
@@ -300,12 +319,11 @@ def main():
     for table in tables:
         print(table)
 
-    perform_queries(poverty_flat, r'C:\temp')
+    perform_queries(poverty_flat)
 
     fill_nulls_using_functional_dependency(poverty_flat, tables)
     fix_null_by_removal(poverty_flat)
     fix_nulls_by_most_frequent(poverty_flat)
-    return
 
 
 if __name__ == '__main__':
