@@ -223,7 +223,219 @@ int ex2()
 	return 0;
 }
 
+// ******************** EX3 ********************
+int ex3()
+{
+	const ull modulo = 998244353;
+	ul card_amount;
+	std::cin >> card_amount;
+
+	std::vector<std::pair<ull, ull>> cards;
+
+	// possibilities[i][j] is a pair (a, b) which represents the amount of different 
+	// valid combinations of the subset of cards from i onwards.
+	// if the i-1 card is flipped then the possibilities are a, otherwise b.
+	std::vector<std::pair<ull, ull>> possibilities;
+	for (ul i = 0; i < card_amount; i++)
+	{
+		ull first, second;
+		std::cin >> first;
+		std::cin >> second;
+
+		cards.push_back({ first, second });
+		possibilities.push_back({ 0, 0 });
+	}
+
+	possibilities[card_amount - 1] = { 1, 1 };
+
+	for (long long i = cards.size() - 2; i >= 0; i--)
+	{
+		// first option
+		ull value = cards[i].first;
+		if (value != cards[i + 1].first)
+			possibilities[i].first += possibilities[i + 1].first;
+
+		if (value != cards[i + 1].second)
+			possibilities[i].first += possibilities[i + 1].second;
+
+		possibilities[i].first = possibilities[i].first % modulo;
+
+		// second option
+		value = cards[i].second;
+		if (value != cards[i + 1].first)
+			possibilities[i].second += possibilities[i + 1].first;
+
+		if (value != cards[i + 1].second)
+			possibilities[i].second += possibilities[i + 1].second;
+
+		possibilities[i].second = possibilities[i].second % modulo;
+	}
+
+	ull result = (possibilities[0].first + possibilities[0].second) % modulo;
+
+	std::cout << result << std::endl;
+	return 0;
+}
+
+int ex4()
+{
+	ul test_cases;
+	std::cin >> test_cases;
+
+	std::vector<std::vector<ull>> results;
+	for (ul i = 0; i < test_cases; i++)
+	{
+		ul array_size;
+		std::cin >> array_size;
+
+		std::vector<ull> current_array_results;
+		ul odd_amount = 0, even_amount = 0;
+		ull sum = 0;
+		for (ul j = 0; j < array_size; j++)
+		{
+			ull value;
+			std::cin >> value;
+
+			sum += value;
+			if (value % 2 == 0)
+				even_amount++;
+			else
+				odd_amount++;
+
+			if (j == 0)
+			{
+				current_array_results.push_back(sum);
+				continue;
+			}
+
+			// If there are only even numbers then no odd-even pairs will ever be chosen.
+			// If there is at least 1 even number, choosing even number will always lead to
+			// us eventually having only 1 even number, at which point if we choose the even
+			// number we always match an even-odd pair.
+			//
+			// Therefore, player1 will always choose 2 odds (unless there are no odds in which case
+			// the "game" ends immediately).
+			ull odd_even_pairs_chosen = odd_amount / 3;
+			if (odd_amount % 3 == 1)
+				odd_even_pairs_chosen++;
+
+			current_array_results.push_back(sum - odd_even_pairs_chosen);
+		}
+		results.push_back(std::move(current_array_results));
+	}
+
+	for (const auto& result : results)
+	{
+		for (const auto& sum : result)
+		{
+			std::cout << sum << " ";
+		}
+		std::cout << std::endl;
+	}
+	return 0;
+}
+
+ul maxInCounters(ul counters[256])
+{
+	ul biggest = 0;
+	for (ul i = 0; i < 256; i++)
+	{
+		biggest = max(biggest, counters[i]);
+	}
+
+	return biggest;
+}
+
+ul alternatingStringEvenOddSumMax(const std::string& str)
+{
+	ul evenCounters[256] = { 0 };
+	ul oddCounters[256] = { 0 };
+
+	for (ul i = 0; i < str.size() - 1; i++)
+	{
+		if (i % 2 == 0)
+			evenCounters[str[i]]++;
+		else
+			oddCounters[str[i]]++;
+	}
+
+	if (str.size() % 2 == 0)
+	{
+		oddCounters[str[str.size() - 1]]++;
+		return maxInCounters(evenCounters) + maxInCounters(oddCounters);
+	}
+
+	ul maxEven = maxInCounters(evenCounters);
+	ul maxOdd = maxInCounters(oddCounters);
+
+	ul evenOddSumMax = maxEven + maxOdd;
+
+	// assume str.size() is odd
+	for (long long i = str.size() - 2; i >= 0; i--)
+	{
+		// evenCounters and oddCounters contain the data relevant if
+		// the (i+1)th element was removed.
+		// When we look at the i-th case, all the elements except for
+		// str[i], str[i+1] are unchanged - they remain even/odd and with the
+		// same value.
+		// We only need to treat those two characters.
+		ul* counters = nullptr;
+		if (i % 2 == 0)
+			counters = evenCounters;
+		else
+			counters = oddCounters;
+
+		counters[str[i + 1]]++;
+		counters[str[i]]--;
+
+		maxEven = maxInCounters(evenCounters);
+		maxOdd = maxInCounters(oddCounters);
+		evenOddSumMax = max((maxEven + maxOdd), evenOddSumMax);
+	}
+
+	return evenOddSumMax;
+}
+
+ul MinimumChangesForAlternatingString(const std::string& str)
+{
+	if (str.size() == 1)
+		return 1;
+
+	ul evenOddSumMax = alternatingStringEvenOddSumMax(str);
+
+	// note that if the size of the string is odd then we've alrady accounted
+	// for the deletion procedure since we've performed the even-odd-max calculation
+	// on an even string that is smaller by 1, therefore when we use str.size() the
+	// deletion procedure is taken into account.
+	return (ul)str.size() - evenOddSumMax;
+}
+
+int ex5()
+{
+	ul test_cases;
+	std::cin >> test_cases;
+	std::vector<ul> results;
+
+	for (ul i = 0; i < test_cases; i++)
+	{
+		ul str_size;
+		std::cin >> str_size;
+
+		std::string str;
+		std::cin >> str;
+
+		ul result = MinimumChangesForAlternatingString(str);
+		results.push_back(result);
+	}
+
+	for (ul i = 0; i < results.size(); i++)
+	{
+		std::cout << results[i] << std::endl;
+	}
+	return 0;
+}
+
 int main()
 {
-	return ex2();
+	return ex5();
 }
