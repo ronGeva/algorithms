@@ -10,6 +10,8 @@
 
 typedef unsigned long long ull;
 typedef unsigned long ul;
+#define max(x, y) x > y ? x : y
+#define min(x, y) x > y ? y : x
 
 ul ex6FindRoot(std::unordered_map<ul, std::vector<ul>>& edges, ul N)
 {
@@ -119,9 +121,13 @@ void ex6()
 	std::unordered_map<ul, std::vector<ul>> edges;
 	for (ul i = 0; i < N - 1; i++)
 	{
-		ul source, dst;
-		std::cin >> source;
-		std::cin >> dst;
+		ul source, dst, a, b;
+		std::cin >> a;
+		std::cin >> b;
+
+		// arbitrarily decide the smaller of the two is the source
+		source = min(a, b);
+		dst = max(a, b);
 
 		if (edges.find(source) == edges.end())
 		{
@@ -131,7 +137,10 @@ void ex6()
 		edges[source].push_back(dst);
 	}
 
-	ul root = ex6FindRoot(edges, N);
+	//ul root = ex6FindRoot(edges, N);
+
+	// 1 will always be the root
+	ul root = 1;
 	std::unordered_map<ul, ul> size_of_tree;
 	ex6SizeOfTree(root, edges, size_of_tree);
 
