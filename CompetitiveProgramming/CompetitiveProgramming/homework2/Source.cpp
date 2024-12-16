@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <stack>
 #include <vector>
 #include <algorithm>
 #include <unordered_set>
@@ -67,6 +68,8 @@ void ex7CalcDistances(std::unordered_map<ul, ull>& distances,
 					  ul node, ul N, ul parent)
 {
 	auto children = edges.find(node);
+	// we're calculating the distance sum of all children in each vertex.
+	// no need to do so for the vertex itself
 	if (children == edges.end())
 		return;
 
@@ -75,7 +78,11 @@ void ex7CalcDistances(std::unordered_map<ul, ull>& distances,
 		if (child == parent)
 			continue;
 
+		// apply the formula described earlier:
+		// D[n] = D[P(n)] + N - 2 * S(n)
 		distances[child] = (distances[node] - 2 * (ull)size_of_tree[child]) + N;
+
+		// continue the DFS scan
 		ex7CalcDistances(distances, edges, size_of_tree, child, N, node);
 	}
 }
@@ -102,6 +109,7 @@ void ex7()
 	ul N;
 	std::cin >> N;
 
+	// the tree is undirected, insert each edge in both direction
 	std::unordered_map<ul, std::vector<ul>> edges;
 	for (ul i = 0; i < N - 1; i++)
 	{
@@ -127,16 +135,22 @@ void ex7()
 		edges[source].push_back(dst);
 	}
 
-	// arbitrarily choose 1 as the root
+	// arbitrarily choose 1 as the root, in an undirected tree each vertex can be
+	// the root
 	ul root = 1;
 
 	std::unordered_map<ul, ul> size_of_tree;
+	// calculate the size of the tree under the root
 	ex7SizeOfTree(root, edges, size_of_tree, 0);
 
 	std::unordered_map <ul, ull> distances;
+	// calculate in O(n) the sum of distances from the root to all other edges
 	ull root_distances = ex7SumDistancesFromRootToTree(edges, 0, root, 0);
 	distances[root] = root_distances;
 
+	// now perform a DFS starting from the root, using the equation defined at the beginning
+	// to compute in O(1) for each vertex the sum of distances from it to any other vertex
+	// in the graph
 	ex7CalcDistances(distances, edges, size_of_tree, root, N, 0);
 
 	for (ul i = 1; i <= N; i++)
@@ -145,11 +159,8 @@ void ex7()
 	}
 }
 
-bool ex6CompareLeaves(pair<ull, ul> a, pair<ull, ul> b)
-{
-	return a.first > b.first;
-}
-
+// If key exists in the map, add the value to the value.
+// Otherwise, assign it.
 void ex6MapAssignOrAdd(map<ull, ul>& m, ull key, ul value)
 {
 	auto it = m.find(key);
@@ -168,6 +179,8 @@ shared_ptr<map<ull, ul>> ex6CitizensInLeaves(ul node, unordered_map<ul, ull>& ci
 {
 	if (edges.find(node) == edges.end())
 	{
+		// this is a leaf, it has exactly the amount of civilians defined in the input,
+		// and there is one of it.
 		return std::make_shared<map<ull, ul>>(map<ull, ul>{ {citizens[node], 1} });
 	}
 
@@ -175,6 +188,16 @@ shared_ptr<map<ull, ul>> ex6CitizensInLeaves(ul node, unordered_map<ul, ull>& ci
 	vector<shared_ptr<map<ull, ul>>> children_leaves;
 	ul biggest_leaves = 0;
 	ul biggest_leaves_index = ULONG_MAX;
+
+	// recursively get the amount of civilians in all of the children
+	// find the child with the biggest balanced tree of "civilians in leaves".
+	// this is crucial to avoid O(n^2) computation time.
+	// consider a tree: v1->v2->v3->...v(n-1)->vn, if we were to create a new data structure
+	// at each level of the recursion we will have to copy all of the data over and over N times.
+	//
+	// Instead we take the biggest child's result and use it as the initial data structure for
+	// this level. Then we apply the other children's result on top of it, this will ensure no
+	// more than O(nlogn) operations is done during the recursion.
 	for (ul child: edges[node])
 	{
 		children_leaves.push_back(ex6CitizensInLeaves(child, citizens, edges));
@@ -184,9 +207,12 @@ shared_ptr<map<ull, ul>> ex6CitizensInLeaves(ul node, unordered_map<ul, ull>& ci
 			biggest_leaves = children_leaves.back()->size();
 		}
 	}
+
+	// intialize this vertex' data structure to be the biggest data structure of the children
 	citizens_in_leaves = children_leaves[biggest_leaves_index];
 	children_leaves.erase(find(children_leaves.begin(), children_leaves.end(), citizens_in_leaves));
 
+	// now merge the rest of the childrens' data with it
 	for (shared_ptr<map<ull, ul>> child_leaves : children_leaves)
 	{
 		for (auto leaf : *child_leaves)
@@ -198,6 +224,12 @@ shared_ptr<map<ull, ul>> ex6CitizensInLeaves(ul node, unordered_map<ul, ull>& ci
 	ull addition = citizens[node];
 	while (addition > 0)
 	{
+		// in each iteration - add as much civilians as possible to the smallest leaves, to make
+		// them equal to the second-smallest leaves (if there are any).
+		// if we have enough civilians to make all the smallest leaves as big as the second smallest,
+		// merge them. If not, add as much as we can.
+		// If we don't have enough civilians to add to all smallest leaves, add the remainder to some of
+		// them and split the smallest leaves into <smallest leaves>, <smallest leaves + 1>.
 		auto smallest_leaves = *citizens_in_leaves->begin();
 		auto second_smallest = next(citizens_in_leaves->begin());
 		ull needed_to_merge;
@@ -210,6 +242,7 @@ shared_ptr<map<ull, ul>> ex6CitizensInLeaves(ul node, unordered_map<ul, ull>& ci
 		ull addition_per_leaf = current_addition / smallest_leaves.second;
 		ull smallest_value = smallest_leaves.first + addition_per_leaf;
 
+		// update the smallest leaves in the data structure to the new smallest value
 		citizens_in_leaves->erase(smallest_leaves.first);
 		ex6MapAssignOrAdd(*citizens_in_leaves, smallest_value, smallest_leaves.second);
 
@@ -224,6 +257,7 @@ shared_ptr<map<ull, ul>> ex6CitizensInLeaves(ul node, unordered_map<ul, ull>& ci
 			ex6MapAssignOrAdd(*citizens_in_leaves, smallest_value + 1, leaves_incremented);
 		}
 
+		// remove the civilians we've "used" in this iteration, so we can know when we're done
 		addition -= current_addition;
 	}
 
@@ -232,9 +266,31 @@ shared_ptr<map<ull, ul>> ex6CitizensInLeaves(ul node, unordered_map<ul, ull>& ci
 
 void ex6()
 {
+	// The bandits always act after the civilians, which means they can always choose the leaf
+	// with the most people.
+	//
+	// This means the only logical way the civilian should split is to make the biggest leaf
+	// (all civilians will end up at the leaves) contain as little of civilians as possible.
+	//
+	// This can be done by splitting the civilians into equal groups as much as possible.
+	// If two leaves contain an un-even amount of civilians, future civilians arriving
+	// from upper vertices should attempt to even out the difference between them.
+	//
+	// Therefore we only need to save the amount of civilians in each leaf, ordered by the amount,
+	// then split the civilians in each vertex (moving up from the leaves) among the leaves
+	// with the least civilians.
+	//
+	// We can keep a balanced tree (std::map) where the key is the amount of civilians and the value
+	// is the amount of leaves with such an amount. Then for each vertex we'll add the amount
+	// of civilians into the smallest leaves until they have the same value as the next leaf size.
+	// We'll continue until there are no more civilians in the current vertex.
+	//
+	// Finally, the result will be the biggest leaf.
+
 	ul n;
 	cin >> n;
 
+	// get the edges input
 	unordered_map<ul, vector<ul>> edges;
 	for (ul dst = 2; dst <= n; dst++)
 	{
@@ -248,6 +304,7 @@ void ex6()
 		edges[source].push_back(dst);
 	}
 
+	// get the citizens input
 	unordered_map<ul, ull> citizens;
 	for (ul node = 1; node <= n; node++)
 	{
@@ -257,12 +314,144 @@ void ex6()
 		citizens[node] = amount;
 	}
 
+	// use a shared_ptr as the return value of ex6CitizensInLeaves.
+	// this will allow us to avoid copying the returned value on each recursion.
 	shared_ptr<map<ull, ul>> leaves = ex6CitizensInLeaves(1, citizens, edges);
 	cout << leaves->rbegin()->first << endl;
 }
 
+void tarjanDFS(ul node, ul& index, vector<ul>& indices, vector<ul>& lowlink, vector<bool>& onStack,
+			   stack<ul>& s, unordered_map<ul, vector<ul>>& edges, vector<unordered_set<ul>>& sccs)
+{
+	indices[node] = index;
+	lowlink[node] = index;
+	index++;
+	s.push(node);
+	onStack[node] = true;
+
+	// Explore all neighbors of the current node
+	for (ul neighbor : edges[node]) {
+		if (indices[neighbor] == -1) {
+			// Neighbor has not been visited, recurse on it
+			tarjanDFS(neighbor, index, indices, lowlink, onStack, s, edges, sccs);
+			lowlink[node] = min(lowlink[node], lowlink[neighbor]);
+		}
+		else if (onStack[neighbor]) {
+			// Neighbor is in the stack and hence in the current SCC
+			lowlink[node] = min(lowlink[node], indices[neighbor]);
+		}
+	}
+
+	// If node is a root node, pop the stack and generate an SCC
+	if (lowlink[node] == indices[node]) {
+		unordered_set<ul> scc;
+		ul w;
+		do {
+			w = s.top();
+			s.pop();
+			onStack[w] = false;
+			scc.insert(w);
+		} while (w != node);
+		sccs.push_back(scc);
+	}
+}
+
+vector<unordered_set<ul>> findSCCs(unordered_map<ul, vector<ul>>& edges, ul N) {
+	// the data structure required for the implementation of Tarjan's Algorithm (taken from the
+	// presentation with a slight adjustment for the input/output types.
+	vector<ul> indices(N + 1, -1);
+	vector<ul> lowlink(N + 1, -1);
+	vector<bool> onStack(N + 1, false);
+	stack<ul> s;
+	vector<unordered_set<ul>> sccs;
+	ul index = 0;
+
+	// Perform DFS for each node that has not been visited
+	for (ul i = 1; i <= N; i++) {
+		if (indices[i] == -1) {
+			tarjanDFS(i, index, indices, lowlink, onStack, s, edges, sccs);
+		}
+	}
+
+	return sccs;
+}
+
+void ex8()
+{
+	// In order to the capital to be able to reach every other vertex it needs
+	// an edge into every connected component to which no other vertex (outside of the SCC) has an
+	// incoming edge into, except for (of course) the SCC of the capital itself.
+	// 
+	// We find all the SCCs using Tarjan's Algorithm and then find all the "edges between SCCs".
+	// We then need a single edge into every "root SCC" that the capital is not a part of.
+	// That is, an SCC that has no incoming edge into it from a vertex that is not part of the
+	// SCC.
+
+	ul n, m, s;
+	cin >> n;
+	cin >> m;
+	cin >> s;
+
+	// get the edges from the input
+	unordered_map<ul, vector<ul>> edges;
+	for (ul i = 0; i < m; i++)
+	{
+		ul source, dst;
+		cin >> source;
+		cin >> dst;
+
+		if (edges.find(source) == edges.end())
+			edges[source] = {};
+
+		edges[source].push_back(dst);
+	}
+
+	// Find all strongly connected components using Tarjan's Algorithm
+	vector<unordered_set<ul>> sccs = findSCCs(edges, n);
+
+	// map all vertices into their respective SCC, and also initialize all SCCs
+	// as "root sccs". We will remove some of them from this set later on.
+	unordered_map<ul, ul> vertex_to_scc;
+	unordered_set<ul> root_sccs;
+	for (ul scc_index = 0; scc_index < sccs.size(); scc_index++)
+	{
+		for (ul vertex : sccs[scc_index])
+		{
+			vertex_to_scc[vertex] = scc_index;
+		}
+		root_sccs.insert(scc_index);
+	}
+
+	// for each edge, if it connects vertices in different SCCs, determine the
+	// destination vertex' SCC is not a "root SCC".
+	for (auto& vertex_edges : edges)
+	{
+		ul source_vertex = vertex_edges.first;
+		for (auto dst : vertex_edges.second)
+		{
+			ul dst_scc_index = vertex_to_scc[dst];
+			ul src_scc_index = vertex_to_scc[source_vertex];
+			if (src_scc_index == dst_scc_index)
+				continue;
+
+			root_sccs.erase(dst_scc_index);
+		}
+	}
+
+	// if the capital is inside a root SCC, we don't need an edge to it.
+	// other than that - we need an SCC to all other "root SCCs"
+	ul edges_needed = static_cast<ul>(root_sccs.size());
+	ul capital_scc_index = vertex_to_scc[s];
+	if (root_sccs.find(capital_scc_index) != root_sccs.end())
+	{
+		edges_needed--;
+	}
+	cout << edges_needed << endl;
+	return;
+}
+
 int main()
 {
-	ex6();
+	ex8();
 	return 0;
 }
