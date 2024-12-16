@@ -450,8 +450,172 @@ void ex8()
 	return;
 }
 
+void ex3AssignDishValue(unordered_map<ul, pair<ull, ull>>& dish_values,
+	ul node, ull prestige, ull price)
+{
+	if (dish_values.find(node) == dish_values.end())
+	{
+		dish_values[node] = { prestige, price };
+		return;
+	}
+
+	pair<ull, ull> prev_values = dish_values[node];
+	if (price > prev_values.second)
+		return;
+
+	if (price < prev_values.second)
+	{
+		dish_values[node] = { prestige, price };
+		return;
+	}
+
+	if (prestige > prev_values.first)
+	{
+		dish_values[node] = { prestige, price };
+	}
+}
+
+void ex3DfsCalcDishValues(unordered_map<ul, pair<ull, ull>>& dish_values,
+	unordered_map<ul, vector<tuple<ul, ul, ul>>>& edges, ul node, ull prestige, ull price)
+{
+	ex3AssignDishValue(dish_values, node, prestige, price);
+
+	if (edges.find(node) == edges.end())
+	{
+		return;
+	}
+
+	for (tuple<ul, ul, ul> child : edges[node])
+	{
+		ex3DfsCalcDishValues(dish_values, edges, get<0>(child),
+							 prestige + get<1>(child), price + get<2>(child));
+	}
+}
+
+void ex3KnapsackProblem(const std::vector<std::pair<ull, ull>>& items, ul budget, ul& totalBudgetUsed,
+					    ull& totalWorth)
+{
+	ul n = items.size();
+	std::vector<std::vector<ull>> dp(n + 1, std::vector<ull>(budget + 1, 0));
+
+	// Fill the DP table
+	for (ul i = 1; i <= n; ++i) {
+		for (ull b = 0; b <= budget; ++b) {
+			if (items[i - 1].second <= b) {
+				dp[i][b] = max(dp[i - 1][b], dp[i - 1][b - items[i - 1].second] + items[i - 1].first);
+			}
+			else {
+				dp[i][b] = dp[i - 1][b];
+			}
+		}
+	}
+
+	// The highest worth achievable within the budget
+	totalWorth = dp[n][budget];
+
+	// Backtrack to find the total budget used
+	ull remainingBudget = budget;
+	totalBudgetUsed = 0;
+	for (ull i = n; i > 0 && totalWorth > 0; --i) {
+		if (dp[i][remainingBudget] != dp[i - 1][remainingBudget]) {
+			totalBudgetUsed += items[i - 1].second;
+			totalWorth -= items[i - 1].first;
+			remainingBudget -= items[i - 1].second;
+		}
+	}
+
+	// Restore the original worth value
+	totalWorth = dp[n][budget];
+}
+
+void ex3()
+{
+	// Create a graph from the dishes input.
+	// Then DFS every root (base dish) in the graph to get the total prestige and cost
+	// of every dish.
+	//
+	// Finally, solve the problem using the Knapsack's Problem algorithm.
+	ul budget;
+	cin >> budget;
+
+	ul N;
+	cin >> N;
+
+	unordered_map<string, ul> name_to_index;
+	ul current_index = 0;
+	// each dish has a list of derived dishes
+	// each "Edge" to a derived dish has 3 values:
+	// { dst dish, prestige, price}
+	unordered_map<ul, vector<tuple<ul, ul, ul>>> edges;
+
+	unordered_set<ul> base_dishes;
+
+	// get the input edges
+	for (ul i = 0; i < N; i++)
+	{
+		string derived_dish;
+		string source_dish;
+		string ingredient;
+		ul price;
+		ul prestige;
+		cin >> derived_dish;
+		cin >> source_dish;
+		cin >> ingredient;
+		cin >> price;
+		cin >> prestige;
+		
+		if (name_to_index.find(source_dish) == name_to_index.end())
+		{
+			name_to_index[source_dish] = current_index++;
+
+			// add all dishes that appear as some source dish in the root dishes
+			// set. These dishes haven't been referenced yet otherwise we would have
+			// have an index to them. If it's not really a root index it will be
+			// removed later when someone points an edge to it.
+			base_dishes.insert(name_to_index[source_dish]);
+		}
+		if (name_to_index.find(derived_dish) == name_to_index.end())
+		{
+			name_to_index[derived_dish] = current_index++;
+		}
+
+		ul source = name_to_index[source_dish];
+		ul dst = name_to_index[derived_dish];
+
+		// if dst is in root_edges, it is not anymore
+		base_dishes.erase(dst);
+
+		if (edges.find(source) == edges.end())
+		{
+			edges[source] = {};
+		}
+		edges[source].push_back({ dst, prestige, price });
+	}
+
+	// key is the dish index
+	// value is <prestige, price>
+	// cumulative value might pass 32 bit so we use ull
+	unordered_map<ul, pair<ull, ull>> dish_values;
+	for (ul base_dish : base_dishes)
+	{
+		ex3DfsCalcDishValues(dish_values, edges, base_dish, 0, 0);
+	}
+
+	vector<pair<ull, ull>> dish_values_vector;
+	for (auto& item : dish_values)
+	{
+		dish_values_vector.push_back(item.second);
+	}
+
+	ul budget_used = 0;
+	ull prestige_achieved = 0;
+	ex3KnapsackProblem(dish_values_vector, budget, budget_used, prestige_achieved);
+	cout << prestige_achieved << endl;
+	cout << budget_used << endl;
+}
+
 int main()
 {
-	ex8();
+	ex3();
 	return 0;
 }
