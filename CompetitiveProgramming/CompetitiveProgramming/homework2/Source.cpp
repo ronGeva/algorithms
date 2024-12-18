@@ -450,82 +450,99 @@ void ex8()
 	return;
 }
 
-void ex3AssignDishValue(unordered_map<ul, pair<ull, ull>>& dish_values,
-	ul node, ull prestige, ull price)
+void ex3AssignDishValue(unordered_map<string, pair<ull, ull>>& dish_values,
+	const string& node, ull prestige, ull price)
 {
-	if (dish_values.find(node) == dish_values.end())
+	auto node_values = dish_values.find(node);
+	if (node_values == dish_values.end())
 	{
 		dish_values[node] = { prestige, price };
 		return;
 	}
 
-	pair<ull, ull> prev_values = dish_values[node];
+	pair<ull, ull>& prev_values = node_values->second;
 	if (price > prev_values.second)
 		return;
 
 	if (price < prev_values.second)
 	{
-		dish_values[node] = { prestige, price };
+		prev_values = { prestige, price };
 		return;
 	}
 
 	if (prestige > prev_values.first)
 	{
-		dish_values[node] = { prestige, price };
+		prev_values = { prestige, price };
 	}
 }
 
-void ex3DfsCalcDishValues(unordered_map<ul, pair<ull, ull>>& dish_values,
-	unordered_map<ul, vector<tuple<ul, ul, ul>>>& edges, ul node, ull prestige, ull price)
+void ex3DfsCalcDishValues(unordered_map<string, pair<ull, ull>>& dish_values,
+	unordered_map<string, vector<tuple<string, ul, ul>>>& edges, const string& node,
+	ull prestige, ull price)
 {
 	ex3AssignDishValue(dish_values, node, prestige, price);
 
-	if (edges.find(node) == edges.end())
+	auto children = edges.find(node);
+	if (children == edges.end())
 	{
 		return;
 	}
 
-	for (tuple<ul, ul, ul> child : edges[node])
+	for (tuple<string, ul, ul>& child : children->second)
 	{
 		ex3DfsCalcDishValues(dish_values, edges, get<0>(child),
 							 prestige + get<1>(child), price + get<2>(child));
 	}
 }
 
-void ex3KnapsackProblem(const std::vector<std::pair<ull, ull>>& items, ul budget, ul& totalBudgetUsed,
-					    ull& totalWorth)
+void ex3KnapsackProblem(const std::vector<std::pair<ull, ull>>& items, ul budget, ul& budget_used,
+					    ull& maximal_value)
 {
 	ul n = items.size();
-	std::vector<std::vector<ull>> dp(n + 1, std::vector<ull>(budget + 1, 0));
+	// prestige[i][j] is the prestige achievable while only considering the first i-1 items, and having
+	// a maximal budget of j
+	vector<vector<ull>> prestige(n + 1, std::vector<ull>(budget + 1, 0));
 
 	// Fill the DP table
 	for (ul i = 1; i <= n; ++i) {
 		for (ull b = 0; b <= budget; ++b) {
 			if (items[i - 1].second <= b) {
-				dp[i][b] = max(dp[i - 1][b], dp[i - 1][b - items[i - 1].second] + items[i - 1].first);
+				prestige[i][b] = max(prestige[i - 1][b], prestige[i - 1][b - items[i - 1].second] + items[i - 1].first);
 			}
 			else {
-				dp[i][b] = dp[i - 1][b];
+				prestige[i][b] = prestige[i - 1][b];
 			}
 		}
 	}
 
 	// The highest worth achievable within the budget
-	totalWorth = dp[n][budget];
+	ull maximal_prestige = prestige[n][budget];
 
-	// Backtrack to find the total budget used
-	ull remainingBudget = budget;
-	totalBudgetUsed = 0;
-	for (ull i = n; i > 0 && totalWorth > 0; --i) {
-		if (dp[i][remainingBudget] != dp[i - 1][remainingBudget]) {
-			totalBudgetUsed += items[i - 1].second;
-			totalWorth -= items[i - 1].first;
-			remainingBudget -= items[i - 1].second;
-		}
+	// the minimal budget achieving maximal prestige (but within the budget defined)
+	ull minimal_budget = budget;
+
+	while (minimal_budget > 0 && prestige[n][minimal_budget - 1] == maximal_prestige)
+	{
+		minimal_budget--;
 	}
 
-	// Restore the original worth value
-	totalWorth = dp[n][budget];
+	maximal_value = maximal_prestige;
+	budget_used = minimal_budget;
+	return;
+
+	//// Backtrack to find the total budget used
+	//ull remainingBudget = budget;
+	//budget_used = 0;
+	//for (ull i = n; i > 0 && maximal_value > 0; --i) {
+	//	if (prestige[i][remainingBudget] != prestige[i - 1][remainingBudget]) {
+	//		budget_used += items[i - 1].second;
+	//		maximal_value -= items[i - 1].first;
+	//		remainingBudget -= items[i - 1].second;
+	//	}
+	//}
+
+	//// Restore the original worth value
+	//maximal_value = prestige[n][budget];
 }
 
 void ex3()
@@ -541,14 +558,13 @@ void ex3()
 	ul N;
 	cin >> N;
 
-	unordered_map<string, ul> name_to_index;
 	ul current_index = 0;
 	// each dish has a list of derived dishes
 	// each "Edge" to a derived dish has 3 values:
 	// { dst dish, prestige, price}
-	unordered_map<ul, vector<tuple<ul, ul, ul>>> edges;
+	unordered_map<string, vector<tuple<string, ul, ul>>> edges;
 
-	unordered_set<ul> base_dishes;
+	unordered_set<string> derived_dishes;
 
 	// get the input edges
 	for (ul i = 0; i < N; i++)
@@ -563,42 +579,34 @@ void ex3()
 		cin >> ingredient;
 		cin >> price;
 		cin >> prestige;
-		
-		if (name_to_index.find(source_dish) == name_to_index.end())
-		{
-			name_to_index[source_dish] = current_index++;
 
-			// add all dishes that appear as some source dish in the root dishes
-			// set. These dishes haven't been referenced yet otherwise we would have
-			// have an index to them. If it's not really a root index it will be
-			// removed later when someone points an edge to it.
-			base_dishes.insert(name_to_index[source_dish]);
-		}
-		if (name_to_index.find(derived_dish) == name_to_index.end())
+		derived_dishes.insert(derived_dish);
+
+		if (edges.find(source_dish) == edges.end())
 		{
-			name_to_index[derived_dish] = current_index++;
+			edges[source_dish] = {};
 		}
 
-		ul source = name_to_index[source_dish];
-		ul dst = name_to_index[derived_dish];
-
-		// if dst is in root_edges, it is not anymore
-		base_dishes.erase(dst);
-
-		if (edges.find(source) == edges.end())
-		{
-			edges[source] = {};
-		}
-		edges[source].push_back({ dst, prestige, price });
+		edges[source_dish].push_back({ derived_dish, prestige, price });
 	}
+
+	/*if (N > 100000)
+		throw;*/
 
 	// key is the dish index
 	// value is <prestige, price>
 	// cumulative value might pass 32 bit so we use ull
-	unordered_map<ul, pair<ull, ull>> dish_values;
-	for (ul base_dish : base_dishes)
+	unordered_map<string, pair<ull, ull>> dish_values;
+	for (auto& dish : edges)
 	{
-		ex3DfsCalcDishValues(dish_values, edges, base_dish, 0, 0);
+		if (derived_dishes.find(dish.first) != derived_dishes.end())
+		{
+			// not a base dish
+			continue;
+		}
+
+		// time limit exceeded here for N > 100,000
+		ex3DfsCalcDishValues(dish_values, edges, dish.first, 0, 0);
 	}
 
 	vector<pair<ull, ull>> dish_values_vector;
@@ -616,6 +624,9 @@ void ex3()
 
 int main()
 {
+	ios_base::sync_with_stdio(false);
+	cin.tie(nullptr);
+
 	ex3();
 	return 0;
 }
