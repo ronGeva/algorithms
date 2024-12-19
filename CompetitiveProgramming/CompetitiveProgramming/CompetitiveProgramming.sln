@@ -17,6 +17,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "atcoders4", "atcoders4\atco
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "atcoders5", "atcoders5\atcoders5.vcxproj", "{6CBB8418-7507-4DB1-8E35-F214E5266C0E}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Test3", "Test3\Test3.vcxproj", "{67FC7918-1CBF-4EF0-B2D2-F2650D9B1495}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -81,6 +83,14 @@ Global
 		{6CBB8418-7507-4DB1-8E35-F214E5266C0E}.Release|x64.Build.0 = Release|x64
 		{6CBB8418-7507-4DB1-8E35-F214E5266C0E}.Release|x86.ActiveCfg = Release|Win32
 		{6CBB8418-7507-4DB1-8E35-F214E5266C0E}.Release|x86.Build.0 = Release|Win32
+		{67FC7918-1CBF-4EF0-B2D2-F2650D9B1495}.Debug|x64.ActiveCfg = Debug|x64
+		{67FC7918-1CBF-4EF0-B2D2-F2650D9B1495}.Debug|x64.Build.0 = Debug|x64
+		{67FC7918-1CBF-4EF0-B2D2-F2650D9B1495}.Debug|x86.ActiveCfg = Debug|Win32
+		{67FC7918-1CBF-4EF0-B2D2-F2650D9B1495}.Debug|x86.Build.0 = Debug|Win32
+		{67FC7918-1CBF-4EF0-B2D2-F2650D9B1495}.Release|x64.ActiveCfg = Release|x64
+		{67FC7918-1CBF-4EF0-B2D2-F2650D9B1495}.Release|x64.Build.0 = Release|x64
+		{67FC7918-1CBF-4EF0-B2D2-F2650D9B1495}.Release|x86.ActiveCfg = Release|Win32
+		{67FC7918-1CBF-4EF0-B2D2-F2650D9B1495}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
