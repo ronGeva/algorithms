@@ -450,51 +450,6 @@ void ex8()
 	return;
 }
 
-void ex3AssignDishValue(unordered_map<string, pair<ull, ull>>& dish_values,
-	const string& node, ull prestige, ull price)
-{
-	auto node_values = dish_values.find(node);
-	if (node_values == dish_values.end())
-	{
-		dish_values[node] = { prestige, price };
-		return;
-	}
-
-	pair<ull, ull>& prev_values = node_values->second;
-	if (price > prev_values.second)
-		return;
-
-	if (price < prev_values.second)
-	{
-		prev_values = { prestige, price };
-		return;
-	}
-
-	if (prestige > prev_values.first)
-	{
-		prev_values = { prestige, price };
-	}
-}
-
-void ex3DfsCalcDishValues(unordered_map<string, pair<ull, ull>>& dish_values,
-	unordered_map<string, vector<tuple<string, ul, ul>>>& edges, const string& node,
-	ull prestige, ull price)
-{
-	ex3AssignDishValue(dish_values, node, prestige, price);
-
-	auto children = edges.find(node);
-	if (children == edges.end())
-	{
-		return;
-	}
-
-	for (tuple<string, ul, ul>& child : children->second)
-	{
-		ex3DfsCalcDishValues(dish_values, edges, get<0>(child),
-							 prestige + get<1>(child), price + get<2>(child));
-	}
-}
-
 void ex3KnapsackProblem(const std::vector<std::pair<ull, ull>>& items, ul budget, ul& budget_used,
 					    ull& maximal_value)
 {
@@ -507,6 +462,9 @@ void ex3KnapsackProblem(const std::vector<std::pair<ull, ull>>& items, ul budget
 	for (ul i = 1; i <= n; ++i) {
 		for (ull b = 0; b <= budget; ++b) {
 			if (items[i - 1].second <= b) {
+				// standard Knapsack step - take the best prestige out of the two option:
+				// option A - we don't choose the i-th item
+				// option B - we choose the i-th item
 				prestige[i][b] = max(prestige[i - 1][b], prestige[i - 1][b - items[i - 1].second] + items[i - 1].first);
 			}
 			else {
@@ -521,6 +479,8 @@ void ex3KnapsackProblem(const std::vector<std::pair<ull, ull>>& items, ul budget
 	// the minimal budget achieving maximal prestige (but within the budget defined)
 	ull minimal_budget = budget;
 
+	// keep decreasing the minimal budget until we lose prestige - that will be the
+	// minimal budget for this prestige
 	while (minimal_budget > 0 && prestige[n][minimal_budget - 1] == maximal_prestige)
 	{
 		minimal_budget--;
@@ -528,28 +488,67 @@ void ex3KnapsackProblem(const std::vector<std::pair<ull, ull>>& items, ul budget
 
 	maximal_value = maximal_prestige;
 	budget_used = minimal_budget;
-	return;
+}
 
-	//// Backtrack to find the total budget used
-	//ull remainingBudget = budget;
-	//budget_used = 0;
-	//for (ull i = n; i > 0 && maximal_value > 0; --i) {
-	//	if (prestige[i][remainingBudget] != prestige[i - 1][remainingBudget]) {
-	//		budget_used += items[i - 1].second;
-	//		maximal_value -= items[i - 1].first;
-	//		remainingBudget -= items[i - 1].second;
-	//	}
-	//}
+// The topological sort taken from the presentation shown in class
+bool ex3TopSortDfs(const string& node,
+	unordered_map<string, unordered_set<string>>& edges,
+	unordered_map<string, ul>& v, stack<string>& sorted_vertices)
+{
+	// detect loops
+	if (v[node] == 1)
+		return false;
 
-	//// Restore the original worth value
-	//maximal_value = prestige[n][budget];
+	if (v[node])
+		return true;
+
+	v[node] = 1;
+	for (const string& neighbor : edges[node])
+	{
+		if (!ex3TopSortDfs(neighbor, edges, v, sorted_vertices))
+			return false;
+	}
+	v[node] = 2;
+	sorted_vertices.push(node);
+	return true;
+}
+
+// The topological sort taken from the presentation shown in class
+bool ex3TopSortDfs(unordered_map<string, unordered_set<string>>& edges,
+	stack<string>& sorted_vertices)
+{
+	unordered_map<string, ul> v;
+	for (auto& key_value : edges)
+	{
+		v[key_value.first] = 0;
+		for (const string& value : key_value.second)
+		{
+			v[value] = 0;
+		}
+	}
+
+	for (auto vertex: v)
+	{
+		if (v[vertex.first])
+			continue;
+
+		if (!ex3TopSortDfs(vertex.first, edges, v, sorted_vertices))
+			return false;
+	}
+
+	return true;
 }
 
 void ex3()
 {
 	// Create a graph from the dishes input.
-	// Then DFS every root (base dish) in the graph to get the total prestige and cost
-	// of every dish.
+	// We want to calculate the minimal cost of every dish (and the maximal prestige).
+	// This can be done by looking at the direct parents of every node in the graph
+	// and then choosing the one whose together with the edge give us the minimal cost
+	// and maximal prestige.
+	// 
+	// This algorithm requires us to go through all the parents of every node before going
+	// through the node, which can be done by just going through the nodes in topological order.
 	//
 	// Finally, solve the problem using the Knapsack's Problem algorithm.
 	ul budget;
@@ -590,25 +589,88 @@ void ex3()
 		edges[source_dish].push_back({ derived_dish, prestige, price });
 	}
 
-	/*if (N > 100000)
-		throw;*/
+
+	// compute the edges without all the ingredient prices to prepare for topological sort
+	unordered_map<string, unordered_set<string>> simple_edges;
+	for (auto& edge : edges)
+	{
+		simple_edges[edge.first] = {};
+		for (auto& dst : edge.second)
+		{
+			simple_edges[edge.first].insert(get<0>(dst));
+		}
+	}
+
+	// perform a topological sort
+	stack<string> top_sort_vertices;
+	ex3TopSortDfs(simple_edges, top_sort_vertices);
+
+	vector<string> top_sort_vertices_vec;
+	while (!top_sort_vertices.empty())
+	{
+		top_sort_vertices_vec.push_back(top_sort_vertices.top());
+		top_sort_vertices.pop();
+	}
+
+	// compute all the reverse edges in the graph.
+	// for every {u, v} \in edges, insert {v, u} into reverse_edges.
+	unordered_map <string, vector<tuple<string, ul, ul>>> reverse_edges;
+	for (auto& edge : edges)
+	{
+		for (auto& dst : edge.second)
+		{
+			const string& dst_name = get<0>(dst);
+			if (reverse_edges.find(dst_name) == reverse_edges.end())
+			{
+				reverse_edges[dst_name] = {};
+			}
+			reverse_edges[dst_name].push_back({ edge.first, get<1>(dst), get<2>(dst) });
+		}
+	}
 
 	// key is the dish index
 	// value is <prestige, price>
 	// cumulative value might pass 32 bit so we use ull
 	unordered_map<string, pair<ull, ull>> dish_values;
-	for (auto& dish : edges)
+	for (const string& vertex : top_sort_vertices_vec)
 	{
-		if (derived_dishes.find(dish.first) != derived_dishes.end())
+		if (reverse_edges.find(vertex) == reverse_edges.end())
 		{
-			// not a base dish
+			dish_values[vertex] = { 0, 0 };
 			continue;
 		}
 
-		// time limit exceeded here for N > 100,000
-		ex3DfsCalcDishValues(dish_values, edges, dish.first, 0, 0);
+		pair<ull, ull> vertex_values = { 0, ULLONG_MAX };
+		for (auto edge : reverse_edges[vertex])
+		{
+			pair<ull, ull> option = dish_values[get<0>(edge)];
+			option.first += get<1>(edge);
+			option.second += get<2>(edge);
+
+			if (vertex_values.second < option.second)
+			{
+				// our cost is lower, continue
+				continue;
+			}
+			if (vertex_values.second > option.second)
+			{
+				// our cost is more, take the option
+				vertex_values = option;
+				continue;
+			}
+
+			if (vertex_values.first < option.first)
+			{
+				// our prestige is less, take the option
+				vertex_values = option;
+			}
+		}
+		dish_values[vertex] = vertex_values;
 	}
 
+	// transform the {<dish_name>: <dish value>} map into a vector
+	// of dish values.
+	// our Knapsack Algorithm do not care about the item names.
 	vector<pair<ull, ull>> dish_values_vector;
 	for (auto& item : dish_values)
 	{
@@ -617,6 +679,8 @@ void ex3()
 
 	ul budget_used = 0;
 	ull prestige_achieved = 0;
+	// get the maximal prestige with its minimal budget using the knapsack algorithm
+	// with a slight twist - we also get the minimal budget with this value.
 	ex3KnapsackProblem(dish_values_vector, budget, budget_used, prestige_achieved);
 	cout << prestige_achieved << endl;
 	cout << budget_used << endl;
