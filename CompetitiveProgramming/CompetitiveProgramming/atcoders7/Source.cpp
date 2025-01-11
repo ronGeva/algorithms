@@ -181,16 +181,6 @@ ul ex3DigitsInNum(ul num)
 	return digits;
 }
 
-void ex3()
-{
-	ull L, R;
-
-	cin >> L, R;
-
-	ul start_digits = ex3DigitsInNum(L);
-	ul end_digits = ex3DigitsInNum(R);
-}
-
 int main()
 {
 	ex44();
