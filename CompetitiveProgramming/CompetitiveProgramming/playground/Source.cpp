@@ -146,65 +146,6 @@ private:
     ul n;
 };
 
-void exMancala2()
-{
-    ul N, M;
-    cin >> N >> M;
-
-    vector<ull> A(N, 0);
-    rep0(i, N)
-    {
-        cin >> A[i];
-    }
-
-    SegTreeRangeUpdates tree(A);
-
-    vector<ul> B(M + 1, 0);
-    rep(i, M)
-    {
-        cin >> B[i];
-    }
-
-    rep(i, M)
-    {
-        ul box_num = B[i];
-
-        // take all the balls out of box_num
-        ll balls = tree.query(box_num);
-        tree.clear(box_num);
-
-        // first, add the amount of balls distributed to all boxes
-        ll addition = balls / N;
-        tree.addToRange(0, N, addition);
-
-        // now add 1 to the box that get one extra ball each
-        ul remainder = balls % N;
-
-        if (box_num == N - 1)
-        {
-            // handle edge case
-            tree.addToRange(0, remainder, 1);
-            continue;
-        }
-
-        ul range_start = box_num + 1;
-        ul range_end = min(box_num + 1 + remainder, N);
-        tree.addToRange(range_start, range_end, 1);
-
-        if (box_num + 1 + remainder > N)
-        {
-            range_start = 0;
-            range_end = box_num + 1 + remainder - N;
-            tree.addToRange(range_start, range_end, 1);
-        }
-    }
-
-    rep0(i, N)
-    {
-        cout << tree.query(i) << " ";
-    }
-}
-
 void testSegRangeUpdates()
 {
     vector<ull> arr = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
@@ -712,9 +653,263 @@ namespace test_cp_algorithms
     }
 }
 
+namespace trie_tree
+{
+    class TrieTree
+    {
+
+    int max_len;
+    vector<unordered_map<char, int>> t; //t[0]['a']=1  means that e(0,1)='a'.
+    vector<ll> cnt;
+    int szT;
+    ll sum;
+
+    int optimalBundlingInternal(int current, int group_size, int depth, ll& sum)
+    {
+        int up = cnt[current];
+
+        for (const pair<char, int>& p : t[current])
+        {
+            up += optimalBundlingInternal(p.second, group_size, depth + 1, sum);
+        }
+
+        int teams_number = up / group_size;
+        sum += (depth * teams_number);
+
+        up -= (teams_number * group_size);
+
+        return up;
+    }
+
+public:
+    TrieTree(int max_len) :max_len(max_len) {
+        szT = 0;
+        t = vector<unordered_map<char, int>>(max_len);
+        cnt = vector<ll>(max_len);
+        sum = 0;
+    }
+
+    void add(const string& s) {
+        int len = s.size();
+        int v = 0;
+        for (int i = 0; i < len; i++) {
+            int c = s[i];
+            // c key in map t[v] is exist or created here.
+            if (t[v][c] == 0)
+                t[v][c] = ++szT;
+
+            v = t[v][c];
+        }
+        ++cnt[v];
+    }
+
+    int find(const string& s) {
+        int len = s.size();
+        int v = 0;
+        for (int i = 0; i < len; i++) {
+            int c = s[i];
+            if (t[v][c] == 0) return 0;
+            v = t[v][c];
+        }
+        return cnt[v];
+    }
+
+    // returns an integer describing the sum of shared prefixes of each group when we divide
+    // the strings in the trie tree into groups of size K
+    int optimalBundling(int group_size)
+    {
+        ll sum = 0;
+        optimalBundlingInternal(0, group_size, 0, sum);
+
+        return sum;
+    }
+};
+}
+
+namespace test5
+{
+
+void exMancala2() {
+    ul N, M;
+    cin >> N >> M;
+
+    vector<ull> A(N, 0);
+    rep0(i, N)
+    {
+        cin >> A[i];
+    }
+
+    SegTreeRangeUpdates tree(A);
+
+    vector<ul> B(M + 1, 0);
+    rep(i, M)
+    {
+        cin >> B[i];
+    }
+
+    rep(i, M)
+    {
+        ul box_num = B[i];
+
+        // take all the balls out of box_num
+        ll balls = tree.query(box_num);
+        tree.clear(box_num);
+
+        // first, add the amount of balls distributed to all boxes
+        ll addition = balls / N;
+        tree.addToRange(0, N, addition);
+
+        // now add 1 to the box that get one extra ball each
+        ul remainder = balls % N;
+
+        if (box_num == N - 1)
+        {
+            // handle edge case
+            tree.addToRange(0, remainder, 1);
+            continue;
+        }
+
+        ul range_start = box_num + 1;
+        ul range_end = min(box_num + 1 + remainder, N);
+        tree.addToRange(range_start, range_end, 1);
+
+        if (box_num + 1 + remainder > N)
+        {
+            range_start = 0;
+            range_end = box_num + 1 + remainder - N;
+            tree.addToRange(range_start, range_end, 1);
+        }
+    }
+
+    rep0(i, N)
+    {
+        cout << tree.query(i) << " ";
+    }
+}
+
+string exDconvertToNewString(const string& s) {
+    string newString = "@";
+
+    for (int i = 0; i < s.size(); i++) {
+        newString += "#" + s.substr(i, 1);
+    }
+
+    newString += "#$";
+    return newString;
+}
+
+// given a string s, find the longest string t such that t=a+b, where a is 
+// a prefix of s and b is a suffix of s, and t is a palindrome.
+//
+// The algorithm is as such:
+// run Manacher's Algorithm on the string, we now have the biggest palindrome centered on i for every
+// 1<=i<=size(Q)
+//
+// Next, find how many matching characters we have from the start and end of the string.
+// Finally, search for the biggest palindrome that intersects the start/end sequence of equal
+// characters.
+//
+// The concatenation of s[:equalSides] + middlePalindrome + s[-equalSides:] will yield the biggest
+// palindrome matching the question.
+string exDLongestSplitPalindrome(const string& s) {
+    string Q = exDconvertToNewString(s);
+    vector<int> P(Q.size(), 0);
+    int c = 0, r = 0;   // current center, right limit
+
+    for (int i = 1; i < Q.size() - 1; i++) {
+        // find the corresponding letter in the palidrome subString
+        int iMirror = c - (i - c);
+
+        if (r > i) {
+            P[i] = min(r - i, P[iMirror]);
+        }
+
+        // expanding around center i
+        while (Q[i + 1 + P[i]] == Q[i - 1 - P[i]]) {
+            P[i]++;
+        }
+
+        // Update c,r in case if the palindrome centered at i expands past r,
+        if (i + P[i] > r) {
+            c = i;              // next center = i
+            r = i + P[i];
+        }
+    }
+
+    ul equalEnds = 0;
+    for (int i = 1; i < (Q.size() - 1) / 2; i++)
+    {
+        if (Q[i] != Q[Q.size() - 1 - i])
+            break;
+
+        equalEnds++;
+    }
+
+    int biggestCompletingPalindrome = 0;
+    int palindromeCenter = 0;
+    // find the biggest palindrome that ends at N-equalEnds-2
+    for (int i = 1; i < Q.size() - 1; i++) {
+
+        if ((i + P[i] >= Q.size() - 1 - equalEnds && i < Q.size() - equalEnds - 1)
+            || (i - P[i] <= equalEnds && i > equalEnds))
+        {
+            int intersection;
+            // if palindrome is straight after prefix
+            if (i - P[i] <= equalEnds)
+            {
+                intersection = equalEnds - i + P[i];
+            }
+            else
+            {
+                intersection = equalEnds - (Q.size() - 1 - i - P[i]);
+            }
+
+            int currentPalindromeSize = P[i] - intersection;
+            if (currentPalindromeSize > biggestCompletingPalindrome)
+            {
+                palindromeCenter = i;
+                biggestCompletingPalindrome = currentPalindromeSize;
+            }
+        }
+    }
+
+    string res = s.substr(0, equalEnds / 2);
+
+    res += s.substr((palindromeCenter - 1 - biggestCompletingPalindrome) / 2,
+        biggestCompletingPalindrome);
+
+    res += s.substr(s.size() - equalEnds / 2, equalEnds / 2);
+
+    return res;
+}
+
+void exD()
+{
+    ul t;
+    cin >> t;
+
+    rep(i, t)
+    {
+        string s;
+        cin >> s;
+
+        string res = exDLongestSplitPalindrome(s);
+        cout << res << endl;
+    }
+}
+
+}
+//
+//void testLongestPalindromicSubsequence()
+//{
+//    string s = "abaccdcckkokokkw";
+//    string res = longestPalindromeSubstring(s);
+//    return;
+//}
+
+
 int main()
 {
-    //testMaxSegmentTree();
-    exFallingBars();
+    test5::exD();
     return 0;
 }
