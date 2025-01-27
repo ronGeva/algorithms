@@ -18,6 +18,7 @@ typedef unsigned long ul;
 typedef long long ll;
 #define UL_MAX 0xffffffff
 #define ULL_MAX 0xffffffffffffffff
+#define LL_MAX 0x7fffffffffffffff
 #define max(x, y) x > y ? x : y
 #define min(x, y) x > y ? y : x
 #define rep(i, n) for(ull i = 1; i <= n; i++)
@@ -907,9 +908,262 @@ void exD()
 //    return;
 //}
 
-
-int main()
+ull string_hash(const string& s)
 {
-    test5::exD();
+    const int p = 31;
+    const int m = 1e9 + 9;
+    ul hash_value = 0;
+    ull p_pow = 1;
+
+    for (char c : s)
+    {
+        hash_value = (hash_value + (c - 'a' + 1) * p_pow) % m;
+        p_pow = (p_pow * p) % m;
+    }
+
+    return hash_value;
+}
+
+// vertices are 1-based
+// edges[v] is the set of vertices accessible from v, each edge the pair represents
+// <destination vertex, cost>.
+//
+// returns a pair - first parameter is the path from source to dst, the second is intialized to 0
+// if there is no negative cost cycle, otherwise - it contains a vertex in the cycle :0
+pair<vector<ul>, ul> bellman_ford(vector<vector<pair<ul, ll>>>& edges, ul source, ul dst)
+{
+    ul n = edges.size();
+    vector<ll> dist = vector<ll>(n, LL_MAX);
+    vector<ul> parent = vector<ul>(n, 0);
+
+    // distance source->source is 0 :)
+    dist[source] = 0;
+
+    bool has_negative_cycle = false;
+
+    ul cycle_start = 0;
+
+    // i is the amount maximum amount of edges allowed in path
+    rep(i, n)
+    {
+        has_negative_cycle = false;
+
+        // iterate edges
+        rep(source_vertex, n - 1)
+        {
+            ul s = (ul)source_vertex;
+            for (auto& edge : edges[s])
+            {
+                ul destination_vertex = edge.first;
+                ll cost = edge.second;
+
+                if (dist[s] + cost < dist[destination_vertex])
+                {
+                    has_negative_cycle = true;
+                    dist[destination_vertex] = dist[s] + cost;
+                    parent[destination_vertex] = s;
+
+                    cycle_start = destination_vertex;
+                }
+            }
+        }
+    }
+
+    if (has_negative_cycle)
+    {
+        return { {}, cycle_start };
+    }
+    
+    if (dist[dst] == LL_MAX)
+    {
+        return { {}, 0 };
+    }
+
+    vector<ul> reversed_path;
+    ul curr = dst;
+    while (curr != source)
+    {
+        reversed_path.push_back(curr);
+        curr = parent[curr];
+    }
+    reversed_path.push_back(source);
+
+    vector<ul> path = vector<ul>(reversed_path.size(), 0);
+    rep0(i, reversed_path.size())
+    {
+        path[i] = reversed_path[reversed_path.size() - 1 - i];
+    }
+
+    return { path, 0 };
+}
+
+void testBellmanFord()
+{
+    // enter number then edges in the form: <source> <dst> <cost>
+    ul N, M;
+    cin >> N >> M;
+
+    vector<vector<pair<ul, ll>>> edges = vector<vector<pair<ul, ll>>>(N + 1, vector<pair<ul, ll>>{});
+    rep(i, M)
+    {
+        ul source, dst;
+        ll cost;
+
+        cin >> source >> dst >> cost;
+
+        edges[source].push_back({ dst, cost });
+    }
+
+    auto res = bellman_ford(edges, 1, N);
+    return;
+}
+
+// vertices are 1 based
+bool is_bipartite(vector<vector<ul>>& edges)
+{
+    ul n = edges.size() - 1;
+    vector<int> side(n + 1, -1);
+    queue<ul> q;
+
+    rep(i, n)
+    {
+        if (side[i] != -1)
+            continue; // already visited
+
+        q.push(i);
+        side[i] = 0;
+
+        // BFS scan starting from the current vertex
+        while (!q.empty())
+        {
+            ul v = q.front();
+            q.pop();
+
+            // visit each vertex adjacent to v
+            for (ul u : edges[v])
+            {
+                if (side[u] == -1)
+                {
+                    // u's side is the opposite of v's side
+                    side[u] = side[v] ^ 1;
+                    q.push(u);
+                }
+                else
+                {
+                    // verify adjacent vertices have different sides
+                    if (side[u] == side[v])
+                        return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+void testIsBiPartite()
+{
+    ul N, M;
+    cin >> N >> M;
+
+    vector<vector<ul>> edges = vector<vector<ul>>(N + 1, vector<ul>{});
+
+    rep(i, M)
+    {
+        ul source, dst;
+        cin >> source >> dst;
+
+        edges[source].push_back(dst);
+    }
+
+    cout << is_bipartite(edges) << endl;
+}
+
+vector<int> sieveOfEratosthenes(int n) {
+    // Initialize a boolean array to mark numbers as prime or not
+    vector<bool> isPrime(n + 1, true);
+    isPrime[0] = isPrime[1] = false; // 0 and 1 are not prime numbers
+
+    // Perform the Sieve of Eratosthenes
+    for (int i = 2; i * i <= n; ++i) {
+        if (isPrime[i]) {
+            // Mark multiples of i as non-prime
+            for (int j = i * i; j <= n; j += i) {
+                isPrime[j] = false;
+            }
+        }
+    }
+
+    // Collect all prime numbers into a vector
+    std::vector<int> primes;
+    for (int i = 2; i <= n; ++i) {
+        if (isPrime[i]) {
+            primes.push_back(i);
+        }
+    }
+
+    return primes;
+}
+
+// returns a vector of <prime, power>
+vector<pair<ul, ul>> primeFactorization(ul n)
+{
+    vector<pair<ul, ul>> res;
+
+    pair<ul, ul> current = { 2, 0 };
+    while (n % 2 == 0)
+    {
+        current.second++;
+        n /= 2;
+    }
+
+    if (current.second > 0)
+    {
+        res.push_back(current);
+    }
+
+    for (ul i = 3; i * i <= n; i += 2)
+    {
+        current.first = i;
+        current.second = 0;
+
+        while (n % i == 0)
+        {
+            current.second++;
+            n /= i;
+        }
+
+        if (current.second > 0)
+        {
+            res.push_back(current);
+        }
+    }
+
+    return res;
+}
+
+// compute a^b % m
+ul FastModuloExponential(ull a, ull b, ull m)
+{
+    ull res = 1;
+    while (b > 0)
+    {
+        if (b & 1)
+        {
+            res *= a;
+            res %= m;
+        }
+
+        a *= a;
+        a %= m;
+        b >>= 1;
+    }
+
+    return res;
+}
+
+int mainSource()
+{
+    ll res = FastModuloExponential(7, 200, 1e9 + 9);
     return 0;
 }
