@@ -15,6 +15,7 @@ using std::vector;
 using namespace std::chrono;
 
 void* g_buffers = NULL;
+//#define ODD_EVEN_MERGE
 
 void preallocate_buffers(size_t biggest_power)
 {
@@ -50,8 +51,18 @@ vector<uint64_t>& get_preallocated_buffer(size_t power)
 	return *reinterpret_cast<vector<uint64_t>***>(g_buffers)[power][index];
 }
 
-vector<uint64_t>* g_buffer1;
-vector<uint64_t>* g_buffer2;
+// retrieves log2 of a power of 2 number
+size_t fast_log2(size_t size)
+{
+	size_t power = 0;
+	while (size > 1)
+	{
+		size >>= 1;
+		power++;
+	}
+
+	return power;
+}
 
 void pad_to_power_of_two(vector<uint64_t>& arr, uint64_t value)
 {
@@ -73,7 +84,7 @@ void odd_even_merge(vector<uint64_t>& left, vector<uint64_t>& right, vector<uint
 		return;
 	}
 
-	size_t power = (size_t)log2(sublist_size / 2);
+	size_t power = fast_log2(sublist_size / 2);
 	vector<uint64_t>& left_even_copy = get_preallocated_buffer(power);
 	vector<uint64_t>& left_odd_copy = get_preallocated_buffer(power);
 	vector<uint64_t>& right_even_copy = get_preallocated_buffer(power);
@@ -91,8 +102,19 @@ void odd_even_merge(vector<uint64_t>& left, vector<uint64_t>& right, vector<uint
 
 	vector<uint64_t>& c = get_preallocated_buffer(power + 1);
 	vector<uint64_t>& d = get_preallocated_buffer(power + 1);
-	odd_even_merge(left_even_copy, right_even_copy, c);
-	odd_even_merge(left_odd_copy, right_odd_copy, d);
+	#pragma omp parallel
+	{
+		#pragma omp single nowait
+		{
+			#pragma omp task
+			odd_even_merge(left_even_copy, right_even_copy, c);
+
+			#pragma omp task
+			odd_even_merge(left_odd_copy, right_odd_copy, d);
+
+			#pragma omp taskwait
+		}
+	}
 
 	// interleave c and d
 	#pragma omp parallel for
@@ -117,7 +139,7 @@ void odd_even_merge(vector<uint64_t>& left, vector<uint64_t>& right, vector<uint
 }
 
 // sorts the interval arr[l:r] in place
-void odd_even_mergesort_internal(vector<uint64_t>& arr, uint64_t l, uint64_t r)
+void parallel_mergesort_internal(vector<uint64_t>& arr, uint64_t l, uint64_t r)
 {
 	if (r - l == 2)
 	{
@@ -137,10 +159,10 @@ void odd_even_mergesort_internal(vector<uint64_t>& arr, uint64_t l, uint64_t r)
 		#pragma omp single nowait
 		{
 			#pragma omp task
-			odd_even_mergesort_internal(arr, l, mid);
+			parallel_mergesort_internal(arr, l, mid);
 
 			#pragma omp task
-			odd_even_mergesort_internal(arr, mid, r);
+			parallel_mergesort_internal(arr, mid, r);
 
 			#pragma omp taskwait
 		}
@@ -152,28 +174,27 @@ void odd_even_mergesort_internal(vector<uint64_t>& arr, uint64_t l, uint64_t r)
 
 	// use pre-allocated buffers to hold copies of the 2 sorted sublists
 	// copy them using parallelism
-	size_t power = (size_t)log2(sublist_size);
-	/*vector<uint64_t> left_copy(sublist_size);
-	vector<uint64_t> right_copy(sublist_size);*/
+	size_t power = fast_log2(sublist_size);
+
 	vector<uint64_t>& left_copy = get_preallocated_buffer(power);
 	vector<uint64_t>& right_copy = get_preallocated_buffer(power);
-	
-	#pragma omp parallel for
+
+#pragma omp parallel for
 	for (size_t i = 0; i < sublist_size; i++)
 	{
 		left_copy[i] = arr[l + i];
 		right_copy[i] = arr[mid + i];
 	}
+#ifdef ODD_EVEN_MERGE
 
 	vector<uint64_t>& merged_result = get_preallocated_buffer(power + 1);
 	odd_even_merge(left_copy, right_copy, merged_result);
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (size_t i = 0; i < sublist_size * 2; i++)
 	{
 		arr[l + i] = merged_result[i];
 	}
-	return;
-
+#else
 	// merge the two copies back into arr
 	size_t a = 0, b = 0;
 	for (size_t i = 0; i < sublist_size * 2; i++)
@@ -190,6 +211,7 @@ void odd_even_mergesort_internal(vector<uint64_t>& arr, uint64_t l, uint64_t r)
 			b++;
 		}
 	}
+#endif
 }
 
 void parallel_mergesort(vector<uint64_t>& arr, uint64_t& duration)
@@ -199,11 +221,12 @@ void parallel_mergesort(vector<uint64_t>& arr, uint64_t& duration)
 	// we need the size of the vector to be a power of 2
 	pad_to_power_of_two(arr, (uint64_t)-1);
 
-	size_t biggest_power = (size_t)log2(arr.size()) + 1;
+	size_t biggest_power = fast_log2(arr.size()) + 1;
+
 	preallocate_buffers(biggest_power);
 
 	auto start = high_resolution_clock::now();
-	odd_even_mergesort_internal(arr, 0, arr.size());
+	parallel_mergesort_internal(arr, 0, arr.size());
 	auto stop = high_resolution_clock::now();
 
 	duration = duration_cast<microseconds>((stop - start)).count();
