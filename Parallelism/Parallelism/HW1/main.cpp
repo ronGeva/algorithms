@@ -11,12 +11,16 @@
 
 #define max(x, y) x > y ? x : y
 #define min(x, y) x > y ? y : x
+#define SUBARRAY_MIN_RECURSION_SIZE 256 // retrieved via benchmarking
 
 using std::vector;
 using namespace std::chrono;
 uint64_t* g_buffer1 = NULL;
 uint64_t* g_buffer2 = NULL;
 
+// pads the array with elements of a particular value so that the size of the new
+// array will be the smallest power of two that is at least as big as the original
+// array size
 void pad_to_power_of_two(vector<uint64_t>& arr, uint64_t value)
 {
 	size_t size = arr.size();
@@ -53,9 +57,14 @@ void odd_even_merge(vector<uint64_t>& arr, size_t start, size_t step, size_t len
 	}
 }
 
+// Given an array in which the values are sorted in the range [l, (l+r)/2 - 1] and
+// in the range [(l+r)/2, r], merge the two subarrays into one sorted subarry
+// in the range [l,r]
 void merge(vector<uint64_t>& arr, uint64_t l, uint64_t r)
 {
 	size_t len = r - l;
+
+	// copy the sub-arrays into temporary buffers
 	memcpy(g_buffer1, &arr[l], (len / 2) * sizeof(uint64_t));
 	memcpy(g_buffer2, &arr[l + len / 2], (len / 2) * sizeof(uint64_t));
 
@@ -65,12 +74,13 @@ void merge(vector<uint64_t>& arr, uint64_t l, uint64_t r)
 		if ((j == len / 2) ||
 			((i < len / 2) && (g_buffer1[i] < g_buffer2[j])))
 		{
-			// choose left element
+			// choose element from left subarray
 			arr[l + index] = g_buffer1[i];
 			i++;
 		}
 		else
 		{
+			// choose element from right subarray
 			arr[l + index] = g_buffer2[j];
 			j++;
 		}
@@ -82,9 +92,11 @@ void merge(vector<uint64_t>& arr, uint64_t l, uint64_t r)
 // sorts the interval arr[l:r] in place
 void parallel_mergesort_internal(vector<uint64_t>& arr, uint64_t l, uint64_t r)
 {
-	if (r - l <= 1)
+	if (r - l <= SUBARRAY_MIN_RECURSION_SIZE)
 	{
-		// a single element subarray, already sorted
+		// sort using a regular, sequential sorting algorithm, more performant
+		// for small sub arrays
+		std::sort(arr.begin() + l, arr.begin() + r);
 		return;
 	}
 
@@ -100,7 +112,6 @@ void parallel_mergesort_internal(vector<uint64_t>& arr, uint64_t l, uint64_t r)
 
 	#pragma omp taskwait
 
-	//odd_even_merge(arr, l, 1, r - l);
 	merge(arr, l, r);
 }
 
